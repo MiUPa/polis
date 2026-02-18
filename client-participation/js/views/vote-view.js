@@ -23,6 +23,17 @@ function getMatchingOfficialTranslation(translations) {
   })[0];
 }
 
+function isEditableTarget(target) {
+  if (!target || !target.tagName) {
+    return false;
+  }
+
+  var tagName = target.tagName.toUpperCase();
+  return (
+    target.isContentEditable || tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT"
+  );
+}
+
 module.exports = Handlebones.ModelView.extend({
   name: "vote-view",
   template: template,
@@ -215,10 +226,12 @@ module.exports = Handlebones.ModelView.extend({
   },
   initialize: function (options) {
     Handlebones.ModelView.prototype.initialize.apply(this, arguments);
+    var keyboardNamespace = ".voteShortcuts-" + this.cid;
     eb.on(eb.exitConv, cleanup);
 
     function cleanup() {
       eb.off(eb.exitConv, cleanup);
+      $(document).off("keydown" + keyboardNamespace, onVoteShortcutKeyDown);
     }
     var serverClient = (this.serverClient = options.serverClient);
     var votesByMe = (this.votesByMe = options.votesByMe);
@@ -243,6 +256,40 @@ module.exports = Handlebones.ModelView.extend({
     var that = this;
     var waitingForComments = true;
     var commentPollInterval = 5 * 1000;
+
+    function onVoteShortcutKeyDown(event) {
+      if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      if (that.model.get("empty") || that.model.get("shouldMod") || !that.model.get("tid")) {
+        return;
+      }
+
+      var key = (event.key || "").toLowerCase();
+      if (key === "s") {
+        event.preventDefault();
+        if (typeof that.participantAgreed === "function") {
+          that.participantAgreed();
+        }
+      } else if (key === "d") {
+        event.preventDefault();
+        if (typeof that.participantDisagreed === "function") {
+          that.participantDisagreed();
+        }
+      } else if (key === "f") {
+        event.preventDefault();
+        if (typeof that.participantPassed === "function") {
+          that.participantPassed();
+        }
+      }
+    }
+
+    $(document).on("keydown" + keyboardNamespace, onVoteShortcutKeyDown);
 
     function pollForComments(optionalPromiseForPreExisingNextCommentCall) {
       if (waitingForComments && !Utils.isHidden()) {

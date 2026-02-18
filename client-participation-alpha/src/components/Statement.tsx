@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { uiLanguage } from '../lib/lang'
 import type { Translations } from '../strings/types'
 import InfoIcon from './icons/InfoIcon'
@@ -13,6 +13,20 @@ interface StatementProps {
   setIsStatmentImportant: React.Dispatch<React.SetStateAction<boolean>>
   voteError: string | null
   importanceEnabled?: boolean
+}
+
+const isTypingTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  const tagName = target.tagName
+  return (
+    target.isContentEditable ||
+    tagName === 'INPUT' ||
+    tagName === 'TEXTAREA' ||
+    tagName === 'SELECT'
+  )
 }
 
 export function Statement({
@@ -64,6 +78,43 @@ export function Statement({
     if (isVoting) return
     onVote(voteType, statement.tid)
   }
+
+  useEffect(() => {
+    const handleVoteShortcut = (event: KeyboardEvent) => {
+      if (isVoting) {
+        return
+      }
+
+      if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+
+      if (isTypingTarget(event.target)) {
+        return
+      }
+
+      const key = event.key.toLowerCase()
+      if (key === 's') {
+        event.preventDefault()
+        onVote(-1, statement.tid)
+        return
+      }
+
+      if (key === 'd') {
+        event.preventDefault()
+        onVote(1, statement.tid)
+        return
+      }
+
+      if (key === 'f') {
+        event.preventDefault()
+        onVote(0, statement.tid)
+      }
+    }
+
+    window.addEventListener('keydown', handleVoteShortcut)
+    return () => window.removeEventListener('keydown', handleVoteShortcut)
+  }, [isVoting, onVote, statement.tid])
 
   const passUnsureText = s.pass
 
